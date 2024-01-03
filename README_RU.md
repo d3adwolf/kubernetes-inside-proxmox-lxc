@@ -47,6 +47,10 @@ net.ipv4.ip_forward                 = 1
 ```bash
 sysctl --system
 ```
+**Файл подкачки**<br>
+```bash
+swapoff -a
+```
 ## Создание LXC контейнера
 В UI Proxmox начнем создание контейнера через "Create CT".
 ### General
@@ -79,7 +83,90 @@ Gateway (IPv4): 192.168.0.1
 - [ ] Start after created
 
 ## Настройка LXC контейнера
+```bash
+lxc.apparmor.profile: unconfined
+lxc.cgroup.devices.allow: a
+lxc.cap.drop:
+lxc.mount.auto: "proc:rw sys:rw"
+```
 
+```bash
+pct push <container id> /boot/config-$(uname -r) /boot/config-$(uname -r)
+```
 
+```bash
+#!/bin/sh -e
+if [ ! -e /dev/kmsg ]; then
+    ln -s /dev/console /dev/kmsg
+fi
+
+mount --make-rshared /
+```
+
+```bash
+[Unit]
+Description=Make sure /dev/kmsg exists
+
+[Service]
+Type=simple
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/conf-kmsg.sh
+TimeoutStartSec=0
+
+[Install]
+WantedBy=default.target
+```
+
+```bash
+chmod +x /usr/local/bin/conf-kmsg.sh
+systemctl daemon-reload
+systemctl enable --now conf-kmsg
+```
 ## Установка базового окружения
 
+## Установка Kubernetes
+### Minikube
+```bash
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo install minikube-linux-amd64 /usr/local/bin/minikube
+```
+```bash
+minikube start --vm-driver none --extra-config kubeadm.ignore-preflight-errors=SystemVerification
+```
+### MicroK8s
+```bash
+sudo snap install microk8s --classic
+```
+```bash
+sudo usermod -a -G microk8s $USER
+sudo chown -f -R $USER ~/.kube
+```
+```bash
+su - $USER
+```
+```bash
+microk8s status --wait-ready
+```
+```bash
+microk8s kubectl get nodes
+microk8s kubectl get services
+```
+```bash
+alias kubectl='microk8s kubectl'
+```
+### K3s
+```
+curl -sfL https://get.k3s.io | sh - 
+# Check for Ready node, takes ~30 seconds 
+sudo k3s kubectl get node 
+```
+
+## Ссылки
+> Из документации [Kubernetes](https://kubernetes.io/docs/setup/production-environment/container-runtimes/)<br>
+> Из статьи [блога Гарретта Миллса](https://garrettmills.dev/blog/2022/04/18/Rancher-K3s-Kubernetes-on-Proxmox-Container/)<br>
+> https://github.com/manusa/actions-setup-minikube/issues/7
+> https://github.com/kubernetes-sigs/cri-tools/blob/master/docs/crictl.md
+> https://www.mirantis.com/blog/how-to-install-cri-dockerd-and-migrate-nodes-from-dockershim/
+> https://kubernetes.io/ru/docs/tasks/tools/install-minikube/
+> https://microk8s.io/docs/getting-started
+> https://docs.k3s.io/quick-start
