@@ -6,6 +6,9 @@
 > Данная инструкция сделана на основе нескольких статей, официальных документов и собственной практики.
 > Все ссылки на первоначальные источники я укажу в конце README.
 
+> [!Warming]\
+> Инструкция в разработке с 05.01.2024 на днях будет готовый вариант, выпустил в публичный доступ, чтобы собирать уже обратную связь.
+
 `Proxmox:`
 > **Kernel Version:** Linux 6.5.11-7-pve (2023-12-05T09:44Z)<br>
 > **Manager Version:** pve-manager/8.1.3/b46aac3b42da5d15
@@ -38,7 +41,7 @@ lsmod | grep -E 'overlay|br_netfilter|ip_vs|nf_nat|xt_conntrack'
 ### Сетевой трафик
 Также убедимся, что `iptables` будет правильно воспринимать сетевой трафик из всех узлов Proxmox, для этого создадим конфиг с разрешением переадресации трафика сети:
 ```bash
-cat <<EOF   tee /etc/sysctl.d/k8s.conf
+cat <<EOF   tee /etc/sysctl.d/99-kubernetes.conf
 net.bridge.bridge-nf-call-iptables  = 1
 net.bridge.bridge-nf-call-ip6tables = 1
 net.ipv4.ip_forward                 = 1
@@ -163,15 +166,28 @@ wget https://github.com/kubernetes-sigs/cri-tools/releases/download/$VERSION/cri
 tar zxvf crictl-$VERSION-linux-amd64.tar.gz -C /usr/local/bin
 rm -f crictl-$VERSION-linux-amd64.tar.gz
 ```
-Актуальную версию можно глянуть в [Releases](https://github.com/kubernetes-sigs/cri-tools/releases) репозитория.
+Проверим установленную версию:
+```bash
+crictl -v
+```
+> Актуальную версию можно глянуть в [Releases](https://github.com/kubernetes-sigs/cri-tools/releases) репозитория.
 ### cri-dockerd
+> [!WARNING]\
+> Требуется для `minikube` в связке с Docker.
+
+Поставим CRI для Docker'а, чтобы Kubernetes смог им управлять:
 ```bash
 wget https://github.com/Mirantis/cri-dockerd/releases/download/v0.3.9/cri-dockerd_0.3.9.3-0.ubuntu-jammy_amd64.deb
 dpkg -i cri-dockerd_0.3.9.3-0.ubuntu-jammy_amd64.deb
 rm -f cri-dockerd_0.3.9.3-0.ubuntu-jammy_amd64.deb
 ```
-Актуальную версию можно глянуть в [Releases](https://github.com/Mirantis/cri-dockerd/releases) репозитория.
+Проверим установленную версию:
+```bash
+cri-dockerd --version
+```
+> Актуальную версию можно глянуть в [Releases](https://github.com/Mirantis/cri-dockerd/releases) репозитория.
 ### containernetworking-plugins
+Поставим плагин для работы сети в Kubernetes:
 ```bash
 CNI_PLUGIN_VERSION="v1.4.0"
 CNI_PLUGIN_TAR="cni-plugins-linux-amd64-$CNI_PLUGIN_VERSION.tgz"
@@ -182,6 +198,7 @@ mkdir -p "$CNI_PLUGIN_INSTALL_DIR"
 tar -xf "$CNI_PLUGIN_TAR" -C "$CNI_PLUGIN_INSTALL_DIR"
 rm "$CNI_PLUGIN_TAR"
 ```
+> Актуальную версию можно глянуть в [Releases]() репозитория.
 ## Установка Docker
 ```bash
 apt update
@@ -215,8 +232,13 @@ rm -f minikube-linux-amd64
 apt install -y ethtool socat
 ```
 ```bash
-minikube start --vm-driver=none --extra-config=kubeadm.ignore-preflight-errors=SystemVerification
+minikube start --vm-driver=none --extra-config=kubeadm.ignore-preflight-errors=SystemVerification --kubernetes-version=v1.29.0 --container-runtime=docker
 ```
+или
+```bash
+minikube start --vm-driver=none --extra-config=kubeadm.ignore-preflight-errors=SystemVerification --kubernetes-version=v1.29.0 --container-runtime=containerd
+```
+для работы через `containerd`.
 ```bash
 mv /root/.kube /root/.minikube $HOME
 chown -R $USER $HOME/.kube $HOME/.minikube
@@ -250,7 +272,26 @@ curl -sfL https://get.k3s.io | sh -
 k3s kubectl get node 
 ```
 
-## Ссылки
+## Проверка любого кластера на работоспобность
+```bash
+kubectl create deployment hello-world --image=registry.k8s.io/echoserver:1.10
+```
+```bash
+kubectl expose deployment hello-world --type=NodePort --port=8080
+```
+```bash
+kubectl get pods -o wide
+minikube service hello-world --url
+```
+```bash
+kubectl delete services hello-world
+kubectl delete deployment hello-world
+```
+
+
+## Всевозможные ошибки
+
+## Документации по технологиям
 > Из документации [Kubernetes](https://kubernetes.io/docs/setup/production-environment/container-runtimes/)<br>
 > Из статьи [блога Гарретта Миллса](https://garrettmills.dev/blog/2022/04/18/Rancher-K3s-Kubernetes-on-Proxmox-Container/)<br>
 > https://github.com/manusa/actions-setup-minikube/issues/7
