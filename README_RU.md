@@ -281,7 +281,7 @@ kubectl expose deployment hello-world --type=NodePort --port=8080
 ```
 ```bash
 kubectl get pods -o wide
-minikube service hello-world --url
+kubectl get service
 ```
 ```bash
 kubectl delete services hello-world
