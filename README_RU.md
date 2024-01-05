@@ -17,7 +17,7 @@
 > **crictl** v1.29.0<br>
 > **cri-dockerd** v0.3.9
 ## Подготовка Proxmox
-**Модули ядра**<br>
+### Модули ядра
 Подключим в ядро рекомендованные модули для работы контейнеров Docker и в целом для K8s.
 Для этого отредактируем `/etc/modules` и добавим:
 ```bash
@@ -35,7 +35,7 @@ modprobe <module>
 ```bash
 lsmod | grep -E 'overlay|br_netfilter|ip_vs|nf_nat|xt_conntrack'
 ```
-**Сетевой трафик**<br>
+### Сетевой трафик
 Также убедимся, что `iptables` будет правильно воспринимать сетевой трафик из всех узлов Proxmox, для этого создадим конфиг с разрешением переадресации трафика сети:
 ```bash
 cat <<EOF   tee /etc/sysctl.d/k8s.conf
@@ -43,11 +43,11 @@ net.bridge.bridge-nf-call-iptables  = 1
 net.bridge.bridge-nf-call-ip6tables = 1
 net.ipv4.ip_forward                 = 1
 ```
-Проверим изменения:
+Применим параметры командой:
 ```bash
 sysctl --system
 ```
-**Файл подкачки**<br>
+### Файл подкачки
 ```bash
 swapoff -a
 ```
@@ -83,17 +83,28 @@ Gateway (IPv4): 192.168.0.1
 - [ ] Start after created
 
 ## Настройка LXC контейнера
+Теперь нужно подготовить контейнер для правильной работы K8s кластера, можете сразу установить удобный редактор текста в Proxmox ноде и в LXC контейнере, я использую `vim` и умею из него выходить:
+```
+apt install -y vim
+```
+### Действия вне контейнера
+В начале выключим контейнер и зайдем на Proxmox под `root` через SSH в каталог `/etc/pve/lxc`, а далее отредактируем через текстовый редактор `<container id>.conf`, где **container id** - индификатор нашего LXC контейнера. Добавим в файл строки:
 ```bash
 lxc.apparmor.profile: unconfined
 lxc.cgroup.devices.allow: a
 lxc.cap.drop:
 lxc.mount.auto: "proc:rw sys:rw"
 ```
-
+- `lxc.apparmor.profile: unconfined` - отключает [AppArmor](https://www.apparmor.net/)
+- `lxc.cgroup.devices.allow:` a - разрешает контейнеру полный доступ к [cgroup](https://wiki.archlinux.org/title/cgroups)
+- `lxc.cap.drop:` - предотвращает "возможности падения", лучше глянуть [документацию LXC](https://linuxcontainers.org/lxc/manpages/man5/lxc.container.conf.5.html)
+- `lxc.mount.auto: "proc:rw sys:rw"` - монтирует корневой раздел /proc и /sys на R/W доступ
+Теперь нужно перекинуть конфигурация загрузки ядра в контейнер, так как `kubelet` использует конфигурацию для определения настроек среды кластера.
+Запускаем контейнер и через `root` в Proxmox выполняем команду:
 ```bash
 pct push <container id> /boot/config-$(uname -r) /boot/config-$(uname -r)
 ```
-
+Теперь создадим символьную ссылку для `/dev/kmsg`, так как `kubelet` использует это для функции журналирования, в LXC у нас есть для этого `/dev/console`, поэтому будем ссылаться на него, создав Bash скрипт в `/usr/local/bin/conf-kmsg.sh`:
 ```bash
 #!/bin/sh -e
 if [ ! -e /dev/kmsg ]; then
@@ -102,7 +113,8 @@ fi
 
 mount --make-rshared /
 ```
-
+И настроим разовый запуск скрипта при запуске LXC контейнера.
+Создаем `/etc/systemd/system/conf-kmsg.service` с таким содержанием:
 ```bash
 [Unit]
 Description=Make sure /dev/kmsg exists
@@ -116,30 +128,107 @@ TimeoutStartSec=0
 [Install]
 WantedBy=default.target
 ```
-
+Делаем наш Bash исполняемым и включаем службу:
 ```bash
 chmod +x /usr/local/bin/conf-kmsg.sh
 systemctl daemon-reload
 systemctl enable --now conf-kmsg
 ```
-## Установка базового окружения
+### Настройка базового окружения
+Обновим установленные пакеты и доставим те, которые пригодяться в дальнейшей настройке:
+```bash
+apt update && apt upgrade -y
+apt install -y wget curl vim conntrack
+```
+Удалим дефолтный firewall, потому что в K8s используются другие инструменты управления трафиков:
+```bash
+apt remove -y ufw && apt autoremove -y
+```
+### kubectl
+Поставим инструмент для управления кластером K8s:
+```bash
+curl -LO https://dl.k8s.io/release/`curl -LS https://dl.k8s.io/release/stable.txt`/bin/linux/amd64/kubectl
+chmod +x ./kubectl
+mv ./kubectl /usr/local/bin/kubectl
+```
+Проверим установленную версию:
+```bash
+kubectl version --client
+```
+### crictl
+Поставим инструмент для управления Container Runtime Interface:
+```bash
+VERSION="v1.29.0"
+wget https://github.com/kubernetes-sigs/cri-tools/releases/download/$VERSION/crictl-$VERSION-linux-amd64.tar.gz
+tar zxvf crictl-$VERSION-linux-amd64.tar.gz -C /usr/local/bin
+rm -f crictl-$VERSION-linux-amd64.tar.gz
+```
+Актуальную версию можно глянуть в [Releases](https://github.com/kubernetes-sigs/cri-tools/releases) репозитория.
+### cri-dockerd
+```bash
+wget https://github.com/Mirantis/cri-dockerd/releases/download/v0.3.9/cri-dockerd_0.3.9.3-0.ubuntu-jammy_amd64.deb
+dpkg -i cri-dockerd_0.3.9.3-0.ubuntu-jammy_amd64.deb
+rm -f cri-dockerd_0.3.9.3-0.ubuntu-jammy_amd64.deb
+```
+Актуальную версию можно глянуть в [Releases](https://github.com/Mirantis/cri-dockerd/releases) репозитория.
+### containernetworking-plugins
+```bash
+CNI_PLUGIN_VERSION="v1.4.0"
+CNI_PLUGIN_TAR="cni-plugins-linux-amd64-$CNI_PLUGIN_VERSION.tgz"
+CNI_PLUGIN_INSTALL_DIR="/opt/cni/bin"
 
+curl -LO "https://github.com/containernetworking/plugins/releases/download/$CNI_PLUGIN_VERSION/$CNI_PLUGIN_TAR"
+mkdir -p "$CNI_PLUGIN_INSTALL_DIR"
+tar -xf "$CNI_PLUGIN_TAR" -C "$CNI_PLUGIN_INSTALL_DIR"
+rm "$CNI_PLUGIN_TAR"
+```
+## Установка Docker
+```bash
+apt update
+apt install -y ca-certificates curl gnupg
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+chmod a+r /etc/apt/keyrings/docker.gpg
+
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  tee /etc/apt/sources.list.d/docker.list > /dev/null
+apt update
+```
+```bash
+apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```
+```bash
+docker version
+```
 ## Установка Kubernetes
-### Minikube
+### kind
+
+### minikube
 ```bash
 curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-sudo install minikube-linux-amd64 /usr/local/bin/minikube
+install minikube-linux-amd64 /usr/local/bin/minikube
+rm -f minikube-linux-amd64
 ```
 ```bash
-minikube start --vm-driver none --extra-config kubeadm.ignore-preflight-errors=SystemVerification
-```
-### MicroK8s
-```bash
-sudo snap install microk8s --classic
+apt install -y ethtool socat
 ```
 ```bash
-sudo usermod -a -G microk8s $USER
-sudo chown -f -R $USER ~/.kube
+minikube start --vm-driver=none --extra-config=kubeadm.ignore-preflight-errors=SystemVerification
+```
+```bash
+mv /root/.kube /root/.minikube $HOME
+chown -R $USER $HOME/.kube $HOME/.minikube
+```
+### kubeadm
+### microK8s
+```bash
+snap install microk8s --classic
+```
+```bash
+usermod -a -G microk8s $USER
+chown -f -R $USER ~/.kube
 ```
 ```bash
 su - $USER
@@ -154,11 +243,11 @@ microk8s kubectl get services
 ```bash
 alias kubectl='microk8s kubectl'
 ```
-### K3s
+### k3s
 ```
 curl -sfL https://get.k3s.io | sh - 
 # Check for Ready node, takes ~30 seconds 
-sudo k3s kubectl get node 
+k3s kubectl get node 
 ```
 
 ## Ссылки
