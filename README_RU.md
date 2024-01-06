@@ -50,9 +50,18 @@ net.ipv4.ip_forward                 = 1
 ```bash
 sysctl --system
 ```
+Проверим изменения в ноде:
+```bash
+sysctl net.ipv4.ip_forward net.bridge.bridge-nf-call-iptables net.bridge.bridge-nf-call-ip6tables
+```
 ### Файл подкачки
+Отключаем в настоящий момент swap-раздел:
 ```bash
 swapoff -a
+```
+И комментируем строки, чтобы при следующей загрузке, он уже не включился:
+```bash
+sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
 ```
 ## Создание LXC контейнера
 В UI Proxmox начнем создание контейнера через "Create CT".
@@ -159,6 +168,9 @@ mv ./kubectl /usr/local/bin/kubectl
 kubectl version --client
 ```
 ### crictl
+> [!WARNING]\
+> Требуется для `minikube`.
+
 Поставим инструмент для управления Container Runtime Interface:
 ```bash
 VERSION="v1.29.0"
@@ -187,6 +199,9 @@ cri-dockerd --version
 ```
 > Актуальную версию можно глянуть в [Releases](https://github.com/Mirantis/cri-dockerd/releases) репозитория.
 ### containernetworking-plugins
+> [!WARNING]\
+> Требуется для `minikube`.
+
 Поставим плагин для работы сети в Kubernetes:
 ```bash
 CNI_PLUGIN_VERSION="v1.4.0"
@@ -200,6 +215,10 @@ rm "$CNI_PLUGIN_TAR"
 ```
 > Актуальную версию можно глянуть в [Releases](https://github.com/containernetworking/plugins/releases) репозитория.
 ## Установка Docker
+> [!WARNING]\
+> Требуется для `minikube`.
+
+Установим зависимости, добавим apt-репозиторий в систему:
 ```bash
 apt update
 apt install -y ca-certificates curl gnupg
@@ -213,76 +232,144 @@ echo \
   tee /etc/apt/sources.list.d/docker.list > /dev/null
 apt update
 ```
+Ставим Docker через `apt`:
 ```bash
 apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 ```
+Проверяем результат и версию Docker:
 ```bash
 docker version
 ```
 ## Установка Kubernetes
 ### kind
+> [!WARNING]\
+> В настоящий момент не удалось запустить в LXC
 
 ### minikube
+Скачиваем пакет и устанавливаем:
 ```bash
 curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
 install minikube-linux-amd64 /usr/local/bin/minikube
 rm -f minikube-linux-amd64
 ```
+Установим зависимости:
 ```bash
 apt install -y ethtool socat
 ```
+Для запуска через CRI Docker воспользуемся этой командой:
 ```bash
 minikube start --vm-driver=none --extra-config=kubeadm.ignore-preflight-errors=SystemVerification --kubernetes-version=v1.29.0 --container-runtime=docker
 ```
-или
+или более правильный выбор в сторону containerd и crio:
 ```bash
 minikube start --vm-driver=none --extra-config=kubeadm.ignore-preflight-errors=SystemVerification --kubernetes-version=v1.29.0 --container-runtime=containerd
 ```
-для работы через `containerd`.
+Если в дальнейшем вы будете работать через обычного пользователя, следует перенести конфиги:
 ```bash
 mv /root/.kube /root/.minikube $HOME
 chown -R $USER $HOME/.kube $HOME/.minikube
 ```
+Проверям работоспособность:
+```bash
+kubectl get nodes -A
+kubectl get services
+```
+
 ### kubeadm
-### microK8s
+> [!WARNING]\
+> В процессе тестирования
+
+### microk8s
+Ставим Snap менеджер:
+```bash
+apt install -y snapd
+```
+Уже через него ставим microk8s:
 ```bash
 snap install microk8s --classic
 ```
+Добавляем пользователя в группу microk8s:
 ```bash
 usermod -a -G microk8s $USER
 chown -f -R $USER ~/.kube
 ```
+Желательно, заходим под обычным пользователем:
 ```bash
 su - $USER
 ```
+Смотрим статус кластера:
 ```bash
 microk8s status --wait-ready
 ```
+Проверям работоспособность:
 ```bash
-microk8s kubectl get nodes
+microk8s kubectl get nodes -A
 microk8s kubectl get services
 ```
+Создадим алиас, чтобы не вводить microk8s для работы через kubectl:
 ```bash
 alias kubectl='microk8s kubectl'
 ```
 ### k3s
-```
+Здесь довольно простая установка:
+```bash
 curl -sfL https://get.k3s.io | sh - 
 # Check for Ready node, takes ~30 seconds 
 k3s kubectl get node 
 ```
-
+Создадим алиас, чтобы не вводить k3s для работы через kubectl:
+```bash
+alias kubectl='k3s kubectl'
+```
+Или перезаписываем конфиги kubectl:
+```bash
+mkdir ~/.kube
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config && sudo chown $USER ~/.kube/config
+sudo chmod 600 ~/.kube/config && export KUBECONFIG=~/.kube/config
+```
+Проверям работоспособность:
+```bash
+kubectl get nodes -A
+kubectl get services
+```
+Чтобы удалить K3s достаточно выполнить:
+```bash
+/usr/local/bin/k3s-uninstall.sh
+```
 ## Проверка любого кластера на работоспобность
+Создаем деплоймент:
 ```bash
 kubectl create deployment hello-world --image=registry.k8s.io/echoserver:1.10
 ```
+Создаем сервис для деплоймента:
 ```bash
 kubectl expose deployment hello-world --type=NodePort --port=8080
 ```
+Смотрим за запуском пода, а также смотрим его NodePort:
 ```bash
 kubectl get pods -o wide
 kubectl get service
 ```
+> Ищем такое: 8080:XXXXX/TCP, где XXXXX - NodePort
+
+Проверим доступность пода вне Proxmox, на своем ноутбуке, выполните `curl` запрос:
+```bash
+curl <ip adress>:XXXXX
+```
+Где `<ip adress>` - IP-адрес контейнера LXC, а `XXXXX` - внешний порт нашего пода.
+
+Ответный запрос должен выйти таким:
+> Hostname: hello-world-576c8bfdf8-c269c
+>
+>Pod Information:
+> -no pod information available-
+>
+>Server values:
+> server_version=nginx: 1.13.3 - lua: 10008
+
+И так далее. 
+
+После успешных проверок, удалим тестовый деплоймент и сервис.
 ```bash
 kubectl delete services hello-world
 kubectl delete deployment hello-world
@@ -294,9 +381,17 @@ kubectl delete deployment hello-world
 ## Документации по технологиям
 > Из документации [Kubernetes](https://kubernetes.io/docs/setup/production-environment/container-runtimes/)<br>
 > Из статьи [блога Гарретта Миллса](https://garrettmills.dev/blog/2022/04/18/Rancher-K3s-Kubernetes-on-Proxmox-Container/)<br>
-> https://github.com/manusa/actions-setup-minikube/issues/7
 > https://github.com/kubernetes-sigs/cri-tools/blob/master/docs/crictl.md
-> https://www.mirantis.com/blog/how-to-install-cri-dockerd-and-migrate-nodes-from-dockershim/
-> https://kubernetes.io/ru/docs/tasks/tools/install-minikube/
 > https://microk8s.io/docs/getting-started
 > https://docs.k3s.io/quick-start
+https://microk8s.io/docs/install-lxd
+https://habr.com/ru/articles/420913/
+https://docs.docker.com/engine/
+https://kubernetes.io/docs/home/
+https://minikube.sigs.k8s.io/docs/
+https://redos.red-soft.ru/base/server-configuring/container/kubernetes/kuber/
+https://linuxcontainers.org/lxc/manpages/man5/lxc.container.conf.5.html
+https://kind.sigs.k8s.io/docs/user/quick-start/
+https://github.com/cri-o/cri-o
+https://rootlesscontaine.rs/getting-started/common/cgroup2/
+https://stackoverflow.com/questions/65397050/minikube-does-not-start-on-ubuntu-20-04-lts-exiting-due-to-guest-provision
