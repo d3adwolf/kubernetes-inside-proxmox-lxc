@@ -270,8 +270,8 @@ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/
 chmod a+r /etc/apt/keyrings/docker.gpg
 
 echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \ https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \ \
   tee /etc/apt/sources.list.d/docker.list > /dev/null
 apt update
 ```
@@ -308,8 +308,70 @@ Let's also verify our changes:
 ```bash
 cat /etc/containerd/config.toml | grep SystemdCgroup
 ```
+### CRI-O
+Create variables with the current version of crio:
+```bash
+export OS=xUbuntu_22.04
+export VERSION=1.24
+```
+> The current version can be found at [download.opensuse.org](https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/)
+
+Install dependencies, add apt repository to the system:
+```bash
+apt install -y gnupg
+
+echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/$OS/ /" > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
+echo "deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/$VERSION/$OS/ /" > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable:cri-o:$VERSION.list
+
+curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/$VERSION/$OS/Release.key | apt-key add -
+curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/$OS/Release.key | apt-key add -
+
+apt update
+```
+Installing crio via `apt`:
+```bash
+apt install -y cri-o cri-o-runc
+```
+Check the installed version:
+```bash
+crio -v
+```
+Now we need to disable [AppArmor](https://www.apparmor.net/) for crio:
+```bash
+sed -i 's/# apparmor_profile =\ "crio-default"/apparmor_profile \= "unconfined"/g' /etc/crio/crio.conf
+```
+Copy the config to work in `minikube`:
+```bash
+cp /etc/crio/crio.conf /etc/crio/crio.conf.d/02-crio.conf
+```
+Check the changes:
+```bash
+cat /etc/crio/crio.conf /etc/crio/crio.conf.d/02-crio.conf | grep apparmor_profile
+```
+Start crio and add it to autorun:
+```bash
+systemctl enable --now crio
+```
 ## Install Kubernetes
 ### minikube
+**Container Runtime**
+
+The choice of container for Kubernetes (Container Runtime) depends on your requirements and preferences, but the most common containers for Kubernetes are Docker, containerd and CRI-O.
+
+1. **Docker** is the most common container included in most Kubernetes distributions.
+
+2. **containerd** is the second most popular container, also commonly used with Kubernetes. 
+
+3. **CRI-O** - a container specifically designed to conform to the Kubernetes container interface (CRI).
+
+To make up my mind, I created clusters of **K8s** under the same conditions with different Container Runtime, and this is what I got:
+
+| Container Runtime  | Creating time (seconds) |
+| ------------------ | ------------------------|
+| Docker             | ~25                     |
+| containerd         | ~22                     |
+| CRI-O              | ~16                     |
+
 **Installation**
 
 Download the package and install:
@@ -323,11 +385,11 @@ Let's install the recommended dependencies:
 apt install -y ethtool socat
 ```
 **Docker**
-To run via **CRI Docker** we will use this command:
+
+Now it's safe to start the cluster:
 ```bash
 minikube start --vm-driver=none --extra-config=kubeadm.ignore-preflight-errors=SystemVerification --kubernetes-version=v1.29.0 --container-runtime=docker
 ```
-Or a more correct choice towards **containerd** or **cri-o**.
 
 **containerd**.
 
@@ -341,8 +403,8 @@ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/
 chmod a+r /etc/apt/keyrings/docker.gpg
 
 echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \ https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \ \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
   tee /etc/apt/sources.list.d/docker.list > /dev/null
 apt update
 ```
@@ -354,11 +416,33 @@ Now it's safe to start the cluster:
 ```bash
 minikube start --vm-driver=none --extra-config=kubeadm.ignore-preflight-errors=SystemVerification --kubernetes-version=v1.29.0 --container-runtime=containerd
 ```
-Let's check if it works:
+**crio**
+
+To run `minikube` via **crio** requires **docker-cli**.
+
+As per the instructions above for **Docker**, do:
 ```bash
-kubectl get nodes -A
-kubectl get services
+apt update
+apt install -y ca-certificates curl gnupg
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+chmod a+r /etc/apt/keyrings/docker.gpg
+
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  tee /etc/apt/sources.list.d/docker.list > /dev/null
+apt update
 ```
+And just put **docker-cli**:
+```bash
+apt install -y docker-ce-cli
+```
+Now it's safe to start the cluster:
+```bash
+minikube start --vm-driver=none --extra-config=kubeadm.ignore-preflight-errors=SystemVerification --kubernetes-version=v1.29.0 --container-runtime=crio
+```
+
 **Removal**
 
 If you want to delete the cluster, just execute:
@@ -397,11 +481,6 @@ See the status of the cluster:
 ```bash
 microk8s status --wait-ready
 ```
-Verify that it is up and running:
-```bash
-microk8s kubectl get nodes -A
-microk8s kubectl get services
-```
 Let's create an alias to avoid typing microk8s to work through kubectl:
 ```bash
 alias kubectl='microk8s kubectl'.
@@ -435,11 +514,7 @@ mkdir ~/.kube
 sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config && sudo chown $USER ~/.kube/config
 sudo chmod 600 ~/.kube/config && export KUBECONFIG=~/.kube/config
 ```
-Let's check if it works:
-```bash
-kubectl get nodes -A
-kubectl get services
-```
+
 **Removal**
 
 To uninstall K3s, simply execute:
@@ -450,7 +525,17 @@ Also, don't forget the alias:
 ```bash
 unalias kubectl
 ```
-## Verify any cluster to be operational.
+## Test any cluster to see if it's working properly
+Execute:
+```bash
+kubectl get nodes && \
+echo && \
+kubectl get services && \
+echo && \
+kubectl get pods -A
+```
+The output should be the current state of the cluster, and if there is one, and `STATUS` = **Ready**, congratulations.
+## Verify the network health of any cluster
 Create an deployment:
 ```bash
 kubectl create deployment hello-world --image=registry.k8s.io/echoserver:1.10
@@ -520,6 +605,6 @@ Here are my current plans for it:
 - [ ] Launch [k0s](https://docs.k0sproject.io/head/)
 - [ ] Launch [kind](https://kind.sigs.k8s.io/) (currently unable to launch)
 - [ ] Raise a cluster via [kubeadm](https://kubernetes.io/docs/reference/setup-tools/kubeadm/)
-- [ ] Set up [cri-o](https://cri-o.io/) support for `minikube`
+- [X] Set up [cri-o](https://cri-o.io/) support for `minikube`
 
 Feel free to post your ideas in [Discussions](https://github.com/d3adwolf/kubernetes-inside-lxc-on-proxmox/discussions).
