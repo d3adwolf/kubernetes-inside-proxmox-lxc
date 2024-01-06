@@ -301,8 +301,70 @@ sed -i 's/SystemdCgroup \= false/SystemdCgroup \= true/g' /etc/containerd/config
 ```bash
 cat /etc/containerd/config.toml | grep SystemdCgroup
 ```
+### CRI-O
+Создаем переменные с актуальной версией crio:
+```bash
+export OS=xUbuntu_22.04
+export VERSION=1.24
+```
+> Актуальную версию можно глянуть на [download.opensuse.org](https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/)
+
+Установим зависимости, добавим apt-репозиторий в систему:
+```bash
+apt install -y gnupg
+
+echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/$OS/ /" > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
+echo "deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/$VERSION/$OS/ /" > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable:cri-o:$VERSION.list
+
+curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/$VERSION/$OS/Release.key | apt-key add -
+curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/$OS/Release.key | apt-key add -
+
+apt update
+```
+Ставим crio через `apt`:
+```bash
+apt install -y cri-o cri-o-runc
+```
+Проверим установленную версию:
+```bash
+crio -v
+```
+Теперь нужно отключить [AppArmor](https://www.apparmor.net/) для crio:
+```bash
+sed -i 's/# apparmor_profile =\ "crio-default"/apparmor_profile \= "unconfined"/g' /etc/crio/crio.conf
+```
+Копируем конфиг для работы в `minikube`:
+```bash
+cp /etc/crio/crio.conf /etc/crio/crio.conf.d/02-crio.conf
+```
+Проверим изменения:
+```bash
+cat /etc/crio/crio.conf /etc/crio/crio.conf.d/02-crio.conf | grep apparmor_profile
+```
+Запускаем crio и добавляем его в автозапуск:
+```bash
+systemctl enable --now crio
+```
 ## Установка Kubernetes
 ### minikube
+**Container Runtime**
+
+Выбор контейнера для Kubernetes (Container Runtime) зависит от ваших требований и предпочтений, но наиболее распространенными контейнерами для Kubernetes являются Docker, containerd и CRI-O.
+
+1. **Docker** - самый распространенный контейнер, включенный в большинство дистрибутивов Kubernetes.
+
+2. **containerd** - второй самый популярный контейнер, также часто используемый с Kubernetes. 
+
+3. **CRI-O** - контейнер, специально разработанный для соответствия интерфейсу контейнера Kubernetes (CRI).
+
+Чтобы определиться, я создал кластеры **K8s** в одинаковых условиях с разными Container Runtime, и вот что у меня получилось:
+
+| Container Runtime  | Creating time (seconds) |
+| ------------------ | ------------------------|
+| Docker             | ~25                     |
+| containerd         | ~22                     |
+| CRI-O              | ~16                     |
+
 **Установка**
 
 Скачиваем пакет и устанавливаем:
@@ -317,11 +379,10 @@ apt install -y ethtool socat
 ```
 **Docker**
 
-Для запуска через **CRI Docker** воспользуемся этой командой:
+Теперь спокойно запускаем кластер:
 ```bash
 minikube start --vm-driver=none --extra-config=kubeadm.ignore-preflight-errors=SystemVerification --kubernetes-version=v1.29.0 --container-runtime=docker
 ```
-или более правильный выбор в сторону **containerd** или **cri-o**.
 
 **containerd**
 
@@ -349,10 +410,31 @@ apt install -y docker-ce-cli
 ```bash
 minikube start --vm-driver=none --extra-config=kubeadm.ignore-preflight-errors=SystemVerification --kubernetes-version=v1.29.0 --container-runtime=containerd
 ```
-Проверям работоспособность:
+**crio**
+
+Для запуска `minikube` через **crio** требуется **docker-cli**.
+
+Как по инструкции выше для **Docker**, делаем:
 ```bash
-kubectl get nodes -A
-kubectl get services
+apt update
+apt install -y ca-certificates curl gnupg
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+chmod a+r /etc/apt/keyrings/docker.gpg
+
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  tee /etc/apt/sources.list.d/docker.list > /dev/null
+apt update
+```
+И просто ставим **docker-cli**:
+```bash
+apt install -y docker-ce-cli
+```
+Теперь спокойно запускаем кластер:
+```bash
+minikube start --vm-driver=none --extra-config=kubeadm.ignore-preflight-errors=SystemVerification --kubernetes-version=v1.29.0 --container-runtime=crio
 ```
 **Удаление**
 
@@ -393,11 +475,6 @@ su - $USER
 ```bash
 microk8s status --wait-ready
 ```
-Проверям работоспособность:
-```bash
-microk8s kubectl get nodes -A
-microk8s kubectl get services
-```
 Создадим алиас, чтобы не вводить microk8s для работы через kubectl:
 ```bash
 alias kubectl='microk8s kubectl'
@@ -425,16 +502,11 @@ k3s kubectl get node
 ```bash
 alias kubectl='k3s kubectl'
 ```
-Или перезаписываем конфиги kubectl:
+или перезаписываем конфиги kubectl:
 ```bash
 mkdir ~/.kube
 sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config && sudo chown $USER ~/.kube/config
 sudo chmod 600 ~/.kube/config && export KUBECONFIG=~/.kube/config
-```
-Проверям работоспособность:
-```bash
-kubectl get nodes -A
-kubectl get services
 ```
 **Удаление**
 
@@ -447,6 +519,16 @@ kubectl get services
 unalias kubectl
 ```
 ## Проверка любого кластера на работоспобность
+Выполняем:
+```bash
+kubectl get nodes && \
+echo && \
+kubectl get services && \
+echo && \
+kubectl get pods -A
+```
+На выходе должны получить текущее состояние кластера, и если он есть, и `STATUS` **Ready**, то вас можно поздравить.
+## Проверка работоспобности сети любого кластера
 Создаем деплоймент:
 ```bash
 kubectl create deployment hello-world --image=registry.k8s.io/echoserver:1.10
@@ -516,7 +598,7 @@ kubectl delete deployment hello-world
 - [ ] Запустить [k0s](https://docs.k0sproject.io/head/)
 - [ ] Запустить [kind](https://kind.sigs.k8s.io/) (в настоящий момент запустить не удается)
 - [ ] Поднять кластер через [kubeadm](https://kubernetes.io/docs/reference/setup-tools/kubeadm/)
-- [ ] Настроить поддержку [cri-o](https://cri-o.io/) для `minikube`
+- [X] Настроить поддержку [cri-o](https://cri-o.io/) для `minikube`
 
 
 Ваши идеи можете предлагать в [Discussions](https://github.com/d3adwolf/kubernetes-inside-lxc-on-proxmox/discussions).
