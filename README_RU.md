@@ -489,7 +489,7 @@ snap remove microk8s
 ```bash
 unalias kubectl
 ```
-### k3s
+### K3s
 **Установка**
 
 Здесь довольно простая установка:
@@ -618,7 +618,7 @@ kubectl delete deployment hello-world
 >
 > Установка [kind](https://kind.sigs.k8s.io/docs/user/quick-start/)
 >
-> Установка [k3s](https://docs.k3s.io/quick-start)
+> Установка [K3s](https://docs.k3s.io/quick-start)
 >
 > Установка [k0s](https://docs.k0sproject.io/head/install/)
 >
