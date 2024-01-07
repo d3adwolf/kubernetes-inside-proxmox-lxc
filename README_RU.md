@@ -147,7 +147,7 @@ mount --make-rshared /
 ```
 И настроим разовый запуск скрипта при запуске LXC контейнера.
 
-Создаем `/etc/systemd/system/conf-kmsg.service` с таким содержанием:
+Создадим `/etc/systemd/system/conf-kmsg.service` с таким содержанием:
 ```bash
 [Unit]
 Description=Make sure /dev/kmsg exists
@@ -302,7 +302,7 @@ sed -i 's/SystemdCgroup \= false/SystemdCgroup \= true/g' /etc/containerd/config
 cat /etc/containerd/config.toml | grep SystemdCgroup
 ```
 ### CRI-O
-Создаем переменные с актуальной версией crio:
+Создадим переменные с актуальной версией crio:
 ```bash
 export OS=xUbuntu_22.04
 export VERSION=1.24
@@ -529,11 +529,11 @@ kubectl get pods -A
 ```
 На выходе должны получить текущее состояние кластера, и если он есть, и `STATUS` = **Ready**, то вас можно поздравить.
 ## Проверка работоспобности сети любого кластера
-Создаем деплоймент:
+Создадим деплоймент:
 ```bash
 kubectl create deployment hello-world --image=registry.k8s.io/echoserver:1.10
 ```
-Создаем сервис для деплоймента:
+Создадим сервис для деплоймента:
 ```bash
 kubectl expose deployment hello-world --type=NodePort --port=8080
 ```
