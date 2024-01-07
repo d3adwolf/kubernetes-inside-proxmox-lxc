@@ -495,7 +495,7 @@ Don't forget the alias:
 ```bash
 unalias kubectl
 ```
-### k3s
+### K3s
 **Installation**
 
 Pretty straightforward installation here:
@@ -625,7 +625,7 @@ I highly recommend reading the resources below for a broader understanding of al
 >
 > Installing [kind](https://kind.sigs.k8s.io/docs/user/quick-start/)
 >
-> Installing [k3s](https://docs.k3s.io/quick-start)
+> Installing [K3s](https://docs.k3s.io/quick-start)
 >
 > Installing [k0s](https://docs.k0sproject.io/head/install/)
 >
