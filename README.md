@@ -121,7 +121,7 @@ First, let's shut down the container and log on Proxmox under `root` via SSH int
 Add lines to the file:
 ```bash
 lxc.apparmor.profile: unconfined
-lxc.cgroup.devices.allow: a
+lxc.cgroup2.devices.allow: a
 lxc.cap.drop:
 lxc.mount.auto: "proc:rw sys:rw"
 ```
