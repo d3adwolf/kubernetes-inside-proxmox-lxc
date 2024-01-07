@@ -502,9 +502,7 @@ alias kubectl='k3s kubectl'
 ```
 или перезаписываем конфиги kubectl:
 ```bash
-mkdir ~/.kube
-cp /etc/rancher/k3s/k3s.yaml ~/.kube/config && chown $USER ~/.kube/config
-chmod 600 ~/.kube/config && export KUBECONFIG=~/.kube/config
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 ```
 **Удаление**
 
