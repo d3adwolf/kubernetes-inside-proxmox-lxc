@@ -120,7 +120,7 @@ apt install -y vim
 Добавим в файл строки:
 ```bash
 lxc.apparmor.profile: unconfined
-lxc.cgroup.devices.allow: a
+lxc.cgroup2.devices.allow: a
 lxc.cap.drop:
 lxc.mount.auto: "proc:rw sys:rw"
 ```
