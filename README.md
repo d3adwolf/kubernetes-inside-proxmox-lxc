@@ -500,9 +500,7 @@ unalias kubectl
 
 Pretty straightforward installation here:
 ```bash
-curl -sfL https://get.k3s.io | sh - 
-# Check for Ready node, takes ~30 seconds 
-k3s kubectl get node 
+curl -sfL https://get.k3s.io | sh -
 ```
 Create an alias to avoid typing k3s to work through kubectl:
 ```bash
@@ -522,6 +520,47 @@ To uninstall K3s, simply execute:
 /usr/local/bin/k3s-uninstall.sh
 ```
 Also, don't forget the alias:
+```bash
+unalias kubectl
+```
+### k0s
+**Installation**
+
+Here's a pretty straightforward installation:
+```bash
+curl -sSLf https://get.k0s.sh | sh
+```
+Install as a service:
+```bash
+k0s install controller --single
+```
+Start the cluster:
+```bash
+k0s start
+```
+Check the status of the cluster:
+```bash
+k0s status
+```
+Create an alias to avoid typing k0s to work through kubectl:
+```bash
+alias kubectl='k0s kubectl'
+```
+**Removal**
+
+Stop the service:
+```bash
+k0s stop
+```
+Remove the k0s service and all dependencies:
+```bash
+k0s reset
+```
+If you need to remove ``k0s``, the only options are:
+```bash
+rm -f /usr/local/bin/k0s
+```
+Also don't forget about alias:
 ```bash
 unalias kubectl
 ```
@@ -588,6 +627,8 @@ I highly recommend reading the resources below for a broader understanding of al
 >
 > Installing [k3s](https://docs.k3s.io/quick-start)
 >
+> Installing [k0s](https://docs.k0sproject.io/head/install/)
+>
 > Installing [cri-o](https://github.com/cri-o/cri-o)
 >
 > Setting up [cgroup](https://rootlesscontaine.rs/getting-started/common/cgroup2/)
@@ -602,7 +643,7 @@ I highly recommend reading the resources below for a broader understanding of al
 I will try to complete the article, both for myself and for all of you.
 
 Here are my current plans for it:
-- [ ] Launch [k0s](https://docs.k0sproject.io/head/)
+- [X] Launch [k0s](https://docs.k0sproject.io/head/)
 - [ ] Launch [kind](https://kind.sigs.k8s.io/) (currently unable to launch)
 - [ ] Raise a cluster via [kubeadm](https://kubernetes.io/docs/reference/setup-tools/kubeadm/)
 - [X] Set up [cri-o](https://cri-o.io/) support for `minikube`
