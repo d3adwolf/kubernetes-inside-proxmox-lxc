@@ -50,7 +50,7 @@ update-initramfs -u
 ### Сетевой трафик
 Также убедимся, что `iptables` будет правильно воспринимать сетевой трафик из всех узлов Proxmox, для этого создадим конфиг с разрешением переадресации трафика сети:
 ```bash
-cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
+cat <<EOF | tee /etc/sysctl.d/k8s.conf
 net.bridge.bridge-nf-call-iptables  = 1
 net.bridge.bridge-nf-call-ip6tables = 1
 net.ipv4.ip_forward                 = 1
@@ -494,9 +494,7 @@ unalias kubectl
 
 Здесь довольно простая установка:
 ```bash
-curl -sfL https://get.k3s.io | sh - 
-# Check for Ready node, takes ~30 seconds 
-k3s kubectl get node 
+curl -sfL https://get.k3s.io | sh -
 ```
 Создадим alias, чтобы не вводить k3s для работы через kubectl:
 ```bash
@@ -505,14 +503,55 @@ alias kubectl='k3s kubectl'
 или перезаписываем конфиги kubectl:
 ```bash
 mkdir ~/.kube
-sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config && sudo chown $USER ~/.kube/config
-sudo chmod 600 ~/.kube/config && export KUBECONFIG=~/.kube/config
+cp /etc/rancher/k3s/k3s.yaml ~/.kube/config && chown $USER ~/.kube/config
+chmod 600 ~/.kube/config && export KUBECONFIG=~/.kube/config
 ```
 **Удаление**
 
 Чтобы удалить K3s достаточно выполнить:
 ```bash
 /usr/local/bin/k3s-uninstall.sh
+```
+Также не забываем про alias:
+```bash
+unalias kubectl
+```
+### k0s
+**Установка**
+
+Здесь довольно простая установка:
+```bash
+curl -sSLf https://get.k0s.sh | sh
+```
+Установим как службу:
+```bash
+k0s install controller --single
+```
+Запустим кластер:
+```bash
+k0s start
+```
+Проверим статус кластера:
+```bash
+k0s status
+```
+Создадим alias, чтобы не вводить k0s для работы через kubectl:
+```bash
+alias kubectl='k0s kubectl'
+```
+**Удаление**
+
+Остановим службу:
+```bash
+k0s stop
+```
+Удалим службу k0s и все зависимости:
+```bash
+k0s reset
+```
+Если нужно удалить `k0s`, то из вариантов только:
+```bash
+rm -f /usr/local/bin/k0s
 ```
 Также не забываем про alias:
 ```bash
@@ -581,6 +620,8 @@ kubectl delete deployment hello-world
 >
 > Установка [k3s](https://docs.k3s.io/quick-start)
 >
+> Установка [k0s](https://docs.k0sproject.io/head/install/)
+>
 > Установка [cri-o](https://github.com/cri-o/cri-o)
 >
 > Настройка [cgroup](https://rootlesscontaine.rs/getting-started/common/cgroup2/)
@@ -595,7 +636,7 @@ kubectl delete deployment hello-world
 Я буду стараться дополнять статью, как для себя, так и для всех вас.
 
 Вот мои текущие планы по ней:
-- [ ] Запустить [k0s](https://docs.k0sproject.io/head/)
+- [X] Запустить [k0s](https://docs.k0sproject.io/head/)
 - [ ] Запустить [kind](https://kind.sigs.k8s.io/) (в настоящий момент запустить не удается)
 - [ ] Поднять кластер через [kubeadm](https://kubernetes.io/docs/reference/setup-tools/kubeadm/)
 - [X] Настроить поддержку [cri-o](https://cri-o.io/) для `minikube`
