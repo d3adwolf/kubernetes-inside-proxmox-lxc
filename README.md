@@ -1,6 +1,6 @@
 # K8s cluster inside LXC Proxmox
 **Language:** [🇷🇺](https://github.com/d3adwolf/kubernetes-in-lxc-on-proxmox/blob/main/README_RU.md) · 🇺🇸<br><br>
-Instructions on how to deploy a working K8s cluster in a Proxmox LXC container.
+Instructions for deploying a working Kubernetes cluster with different Container Runtime: **Docker**, **containerd**, **CRI-O** in a Proxmox LXC container.
 ### Preface
 > [!NOTE]\
 > This instruction is made on the basis of several articles, official documents and my own practice.<br>
