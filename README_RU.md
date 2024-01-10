@@ -1,6 +1,6 @@
 # K8s кластер в LXC Proxmox
 **Language:** 🇷🇺 · [🇺🇸](https://github.com/d3adwolf/kubernetes-in-lxc-on-proxmox/blob/main/README.md)<br><br>
-Инструкция по развертыванию рабочего Kubernetes кластера с различными Container Runtime: **Docker**, **containerd**, **CRI-O** в LXC контейнере Proxmox.
+Инструкция о том, как развернуть рабочий K8s кластер в LXC контейнере Proxmox. 
 ### Предисловие
 > [!NOTE]\
 > Данная инструкция сделана на основе нескольких статей, официальных документов и собственной практики.<br>
@@ -626,9 +626,10 @@ kubectl delete deployment hello-world
 >
 > Статья [блога Гарретта Миллса](https://garrettmills.dev/blog/2022/04/18/Rancher-K3s-Kubernetes-on-Proxmox-Container/)
 >
-> Инструкция по запуску [Kubernetes в redOS](https://redos.red-soft.ru/base/server-configuring/container/kubernetes/kuber/)
->
 > Инструкция по запуску [microk8s в LXD](https://microk8s.io/docs/install-lxd)
+>
+> Инструкция по запуску [Kubernetes в redOS](https://redos.red-soft.ru/base/server-configuring/container/kubernetes/kuber/)
+
 
 ## Планы
 Я буду стараться дополнять статью, как для себя, так и для всех вас.
