@@ -146,7 +146,6 @@ if [ ! -e /dev/kmsg ]; then
     ln -s /dev/console /dev/kmsg
 fi
 
-
 mount --make-rshared /
 ```
 And let's configure the script to run once when the LXC container is started.
@@ -154,7 +153,7 @@ And let's configure the script to run once when the LXC container is started.
 
 Create `/etc/systemd/system/conf-kmsg.service` with this content:
 ```bash
-[Unit].
+[Unit]
 Description=Make sure /dev/kmsg exists
 
 [Service]
