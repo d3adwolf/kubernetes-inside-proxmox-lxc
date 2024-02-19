@@ -40,7 +40,7 @@ modprobe <module>
 ```
 Let's check the active modules:
 ```bash
-lsmod | grep -E 'overlay|br_netfilter|ip_vs|nf_nat|xt_conntrack'.
+lsmod | grep -E 'overlay|br_netfilter|ip_vs|nf_nat|xt_conntrack'
 ```
 It is also recommended to run the command to update the existing initramfs image that is used at system boot:
 ```bash
@@ -52,9 +52,9 @@ update-initramfs -u
 Let's also make sure that `iptables` will correctly accept network traffic from all Proxmox nodes, for this purpose we will create a config with the permission to forward network traffic:
 ```bash
 cat <<EOF | tee /etc/sysctl.d/k8s.conf
-net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-iptables  = 1
 net.bridge.bridge-nf-call-ip6tables = 1
-net.ipv4.ip_forward = 1
+net.ipv4.ip_forward                 = 1
 EOF
 ```
 Apply the parameters with the command:
@@ -104,7 +104,7 @@ IPv4/CIDR: 192.168.0.10/24
 Gateway (IPv4): 192.168.0.1
 ```
 Naturally, this is just an example and you specify your local network.
-### DNS.
+### DNS
 If you have configured or have a separate DNS server at home, which is fine, it's best to specify it, if your router is the primary gateway and DNS server, then skip this tab.
 ### Confirm
 Let's take our time to start the container:
@@ -482,7 +482,7 @@ microk8s status --wait-ready
 ```
 Let's create an alias to avoid typing microk8s to work through kubectl:
 ```bash
-alias kubectl='microk8s kubectl'.
+alias kubectl='microk8s kubectl'
 ```
 **Removal**
 
@@ -503,7 +503,7 @@ curl -sfL https://get.k3s.io | sh -
 ```
 Create an alias to avoid typing k3s to work through kubectl:
 ```bash
-alias kubectl='k3s kubectl'.
+alias kubectl='k3s kubectl'
 ```
 Or overwrite the kubectl configs:
 ```bash
